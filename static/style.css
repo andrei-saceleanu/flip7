@@ -1,0 +1,45 @@
+body {
+  font-family: sans-serif;
+  background: #e6f3ef;
+  text-align: center;
+}
+
+.player {
+  background: white;
+  margin: 10px auto;
+  padding: 10px;
+  border-radius: 10px;
+  width: 300px;
+}
+
+.player.active {
+  box-shadow: 0 0 20px #00cc99;
+}
+
+.cards {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.card {
+  width: 45px;
+  height: 65px;
+  border: 2px solid #333;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  animation: deal 0.3s ease;
+}
+
+@keyframes deal {
+  from { transform: translateY(-15px); opacity: 0 }
+  to { transform: translateY(0); opacity: 1 }
+}
+
+.controls {
+  margin-top: 20px;
+}
