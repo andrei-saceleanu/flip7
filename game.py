@@ -18,9 +18,10 @@ class CardType(Enum):
 
 
 class Card:
-    def __init__(self, type, value=None):
+    def __init__(self, type, value=None, target=None):
         self.type = type
         self.value = value
+        self.target = target
 
     def to_dict(self):
         return {"type": self.type.value, "value": self.value}
@@ -77,6 +78,7 @@ class Player:
 
     def to_dict(self):
         return {
+            "sid": self.sid,
             "name": self.name,
             "round_score": self.round_score(),
             "total_score": self.total_score,
@@ -100,6 +102,8 @@ class Game:
         self.deck = Deck()
         self.match_winner = None
 
+        self.pending_freeze = None
+
     def add_player(self, name, sid):
         if self.started:
             return False
@@ -114,6 +118,9 @@ class Game:
 
     def current_player(self):
         return self.players[self.turn]
+    
+    def get_player_by_sid(self, sid):
+        return next(p for p in self.players if p.sid == sid)
 
     def next_turn(self):
         for _ in range(len(self.players)):
@@ -122,7 +129,7 @@ class Game:
                 return
 
     def hit(self, sid):
-        if not self.started or self.match_winner:
+        if not self.started or self.match_winner or self.pending_freeze:
             return
 
         p = self.current_player()
@@ -149,15 +156,15 @@ class Game:
             p.second_chance += 1
 
         elif card.type == CardType.FREEZE:
-            p.finished = True
-
+            self.pending_freeze = p.sid  # must choose target
+            return
         
         self.next_turn()
 
         self.check_round_end()
 
     def stay(self, sid):
-        if not self.started or self.match_winner:
+        if not self.started or self.match_winner or self.pending_freeze:
             return
 
         p = self.current_player()
@@ -165,6 +172,25 @@ class Game:
             return
 
         p.finished = True
+        self.next_turn()
+        self.check_round_end()
+
+    def apply_freeze(self, sid, target_sid):
+        if self.pending_freeze != sid:
+            return
+
+        target = self.get_player_by_sid(target_sid)
+        if target.finished:
+            return
+
+        target.finished = True
+
+        # annotate last freeze card
+        freezer = self.get_player_by_sid(sid)
+        freezer.cards[-1].target = target.name
+
+        self.pending_freeze = None
+
         self.next_turn()
         self.check_round_end()
 
@@ -191,6 +217,7 @@ class Game:
     def start_new_round(self):
         self.round += 1
         self.turn = (self.turn + 1) % len(self.players)
+        self.pending_freeze = None
         for p in self.players:
             p.reset_round()
 
@@ -200,6 +227,7 @@ class Game:
             "started": self.started,
             "round": self.round,
             "turn": self.turn,
+            "pending_freeze": self.pending_freeze,
             "match_winner": self.match_winner.name if self.match_winner else None,
             "players": [p.to_dict() for p in self.players]
         }

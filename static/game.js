@@ -24,6 +24,10 @@ function stay() {
   socket.emit("stay");
 }
 
+function freezeTarget(sid) {
+  socket.emit("freeze_target", { target_sid: sid });
+}
+
 socket.on("state", state => {
   menu = document.getElementById("menu")
   game = document.getElementById("game")
@@ -47,14 +51,20 @@ socket.on("state", state => {
     const cards = p.cards.map(c => {
       if (c.type === "number") return `<div class="card">${c.value}</div>`;
       if (c.type === "second_chance") return `<div class="card">🔁</div>`;
-      if (c.type === "freeze") return `<div class="card">❄️</div>`;
+      if (c.type === "freeze") return `<div class="card">❄️${c.target ?? ""}</div>`;
     }).join("");
+
+    const freezeBtn =
+      state.pending_freeze === socket.id && !p.finished
+        ? `<button onclick="freezeTarget('${p.sid}')">Freeze</button>`
+        : "";
 
     div.innerHTML = `
       <h3>${p.name}</h3>
       <div>Round: ${p.round_score}</div>
       <div>Total: ${p.total_score}</div>
       <div class="cards">${cards}</div>
+      ${freezeBtn}
     `;
     players.appendChild(div);
   });

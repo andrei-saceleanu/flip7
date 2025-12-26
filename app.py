@@ -61,5 +61,12 @@ def stay():
         game.stay(request.sid)
         socketio.emit("state", game.to_dict(), room=code)
 
+@socketio.on("freeze_target")
+def freeze_target(data):
+    game = games.get(player_game.get(request.sid))
+    if game:
+        game.apply_freeze(request.sid, data["target_sid"])
+        socketio.emit("state", game.to_dict(), room=game.code)
+
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", debug=True)
