@@ -1,5 +1,6 @@
 import random
 import string
+import uuid
 from enum import Enum
 
 WIN_SCORE = 200
@@ -54,7 +55,8 @@ class Deck:
 
 
 class Player:
-    def __init__(self, name, sid):
+    def __init__(self, name, sid, player_id=None):
+        self.player_id = player_id or str(uuid.uuid4())
         self.name = name
         self.sid = sid
         self.total_score = 0
@@ -78,6 +80,7 @@ class Player:
 
     def to_dict(self):
         return {
+            "player_id": self.player_id,
             "sid": self.sid,
             "name": self.name,
             "round_score": self.round_score(),
@@ -104,11 +107,20 @@ class Game:
 
         self.pending_freeze = None
 
-    def add_player(self, name, sid):
+    def add_player(self, name, sid, player_id=None):
+        existing = self.get_player_by_player_id(player_id) if player_id else None
+
+        if existing:
+            existing.sid = sid
+            existing.name = name
+            return existing
+
         if self.started:
-            return False
-        self.players.append(Player(name, sid))
-        return True
+            return None
+
+        p = Player(name, sid, player_id)
+        self.players.append(p)
+        return p
 
     def start(self, sid):
         if sid != self.owner_sid:
@@ -118,6 +130,13 @@ class Game:
 
     def current_player(self):
         return self.players[self.turn]
+    
+    def get_player_by_player_id(self, player_id):
+        for p in self.players:
+            if p.player_id == player_id:
+                return p
+        return None
+
     
     def get_player_by_sid(self, sid):
         return next(p for p in self.players if p.sid == sid)

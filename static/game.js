@@ -3,14 +3,21 @@ const socket = io();
 const nameInput = document.getElementById('name');
 const codeInput = document.getElementById('code');
 
+let playerId = sessionStorage.getItem("player_id");
+if (!playerId) {
+  playerId = crypto.randomUUID();
+  sessionStorage.setItem("player_id", playerId);
+}
+
+const savedGameCode = sessionStorage.getItem("game_code");
+
 function createGame() {
-  socket.emit("create_game", { name: nameInput.value });
+  socket.emit("create_game", { name: nameInput.value, player_id: playerId});
 }
 
 function joinGame() {
-  socket.emit("join_game", { name: nameInput.value, code: codeInput.value });
+  socket.emit("join_game", { name: nameInput.value, code: codeInput.value, player_id: playerId});
 }
-
 
 function startGame() {
   socket.emit("start_game");
@@ -28,6 +35,16 @@ function freezeTarget(sid) {
   socket.emit("freeze_target", { target_sid: sid });
 }
 
+
+socket.on("connect", () => {
+  if (savedGameCode) {
+    socket.emit("rejoin_game", {
+      code: savedGameCode,
+      player_id: playerId
+    });
+  }
+});
+
 socket.on("state", state => {
   menu = document.getElementById("menu")
   game = document.getElementById("game")
@@ -44,6 +61,10 @@ socket.on("state", state => {
   players.innerHTML = "";
 
   state.players.forEach((p, i) => {
+    if (state.code) {
+      sessionStorage.setItem("game_code", state.code);
+    }
+
     const div = document.createElement("div");
     div.className = "player";
     if (state.turn === i && state.started) div.classList.add("active");
@@ -73,6 +94,7 @@ socket.on("state", state => {
 
   if (state.match_winner) {
     alert(`🏆 ${state.match_winner} wins the match!`);
+    sessionStorage.removeItem("game_code");
   }
 });
 
