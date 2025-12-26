@@ -104,6 +104,14 @@ def freeze_target(data):
         game.apply_freeze(request.sid, data["target_sid"])
         socketio.emit("state", game.to_dict(), room=game.code)
 
+@socketio.on("flip3_target")
+def flip3_target(data):
+    game = games.get(player_game.get(request.sid))
+    if game:
+        game.apply_flip3(request.sid, data["target_sid"])
+        socketio.emit("state", game.to_dict(), room=game.code)
+
+
 
 # ---------- Disconnect handling ----------
 

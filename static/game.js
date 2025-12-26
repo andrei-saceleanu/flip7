@@ -35,6 +35,10 @@ function freezeTarget(sid) {
   socket.emit("freeze_target", { target_sid: sid });
 }
 
+function flip3Target(sid) {
+  socket.emit("flip3_target", { target_sid: sid});
+}
+
 
 socket.on("connect", () => {
   if (savedGameCode) {
@@ -72,6 +76,7 @@ socket.on("state", state => {
     const cards = p.cards.map(c => {
       if (c.type === "number") return `<div class="card">${c.value}</div>`;
       if (c.type === "second_chance") return `<div class="card">🔁</div>`;
+      if (c.type === "flip_three") return `<div class="card">3️⃣${c.target ?? ""}</div>`
       if (c.type === "freeze") return `<div class="card">❄️${c.target ?? ""}</div>`;
     }).join("");
 
@@ -80,12 +85,19 @@ socket.on("state", state => {
         ? `<button onclick="freezeTarget('${p.sid}')">Freeze</button>`
         : "";
 
+    const flip3Btn =
+      state.pending_flip3 === socket.id && !p.finished
+        ? `<button onclick="flip3Target('${p.sid}')">Make flip 3</button>`
+        : "";
+    
+
     div.innerHTML = `
       <h3>${p.name}</h3>
       <div>Round: ${p.round_score}</div>
       <div>Total: ${p.total_score}</div>
       <div class="cards">${cards}</div>
       ${freezeBtn}
+      ${flip3Btn}
     `;
     players.appendChild(div);
   });

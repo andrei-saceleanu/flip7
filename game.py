@@ -15,7 +15,7 @@ class CardType(Enum):
     NUMBER = "number"
     SECOND_CHANCE = "second_chance"
     FREEZE = "freeze"
-    FLIP_7 = "flip_7"
+    FLIP_3 = "flip_three" 
 
 
 class Card:
@@ -41,6 +41,7 @@ class Deck:
         cards.append(Card(CardType.NUMBER, 0))
         cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
         cards += [Card(CardType.FREEZE) for _ in range(3)]
+        cards += [Card(CardType.FLIP_3) for _ in range(20)]
 
         for _ in range(10):
             random.shuffle(cards)
@@ -106,6 +107,7 @@ class Game:
         self.match_winner = None
 
         self.pending_freeze = None
+        self.pending_flip3 = None
 
     def add_player(self, name, sid, player_id=None):
         existing = self.get_player_by_player_id(player_id) if player_id else None
@@ -148,7 +150,7 @@ class Game:
                 return
 
     def hit(self, sid):
-        if not self.started or self.match_winner or self.pending_freeze:
+        if not self.started or self.match_winner or self.pending_freeze or self.pending_flip3:
             return
 
         p = self.current_player()
@@ -177,13 +179,16 @@ class Game:
         elif card.type == CardType.FREEZE:
             self.pending_freeze = p.sid  # must choose target
             return
+        elif card.type == CardType.FLIP_3:
+            self.pending_flip3 = p.sid
+            return
         
         self.next_turn()
 
         self.check_round_end()
 
     def stay(self, sid):
-        if not self.started or self.match_winner or self.pending_freeze:
+        if not self.started or self.match_winner or self.pending_freeze or self.pending_flip3:
             return
 
         p = self.current_player()
@@ -212,6 +217,65 @@ class Game:
 
         self.next_turn()
         self.check_round_end()
+
+    def force_draw_three(self, player):
+        for _ in range(3):
+            if player.finished:
+                break
+
+            card = self.deck.draw()
+            player.cards.append(card)
+
+            if card.type == CardType.NUMBER:
+                if card.value in player.numbers:
+                    if player.second_chance > 0:
+                        player.second_chance -= 1
+                    else:
+                        player.busted = True
+                        player.finished = True
+                        break
+                else:
+                    player.numbers.add(card.value)
+                    if len(player.numbers) == 7:
+                        player.flip7 = True
+                        player.finished = True
+                        break
+
+            elif card.type == CardType.SECOND_CHANCE:
+                player.second_chance += 1
+
+            elif card.type == CardType.FREEZE:
+                # freeze drawn during forced draw = immediate effect
+                self.pending_freeze = player.sid
+                break
+
+            elif card.type == CardType.FLIP_3:
+                # chain another flip_3
+                self.pending_flip3 = player.sid
+                break
+
+
+    def apply_flip3(self, sid, target_sid):
+        if self.pending_flip3 != sid:
+            return
+
+        giver = self.get_player_by_sid(sid)
+        target = self.get_player_by_sid(target_sid)
+
+        if not giver or not target or target.finished:
+            self.pending_flip3 = None
+            return
+
+        # annotate the card
+        giver.cards[-1].target = target.name
+
+        self.pending_flip3 = None
+
+        self.force_draw_three(target)
+
+        self.next_turn()
+        self.check_round_end()
+
 
     def check_round_end(self):
         if not all(p.finished for p in self.players):
@@ -247,6 +311,7 @@ class Game:
             "round": self.round,
             "turn": self.turn,
             "pending_freeze": self.pending_freeze,
+            "pending_flip3": self.pending_flip3,
             "match_winner": self.match_winner.name if self.match_winner else None,
             "players": [p.to_dict() for p in self.players]
         }
