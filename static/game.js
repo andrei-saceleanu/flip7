@@ -32,13 +32,16 @@ function stay() {
 }
 
 function freezeTarget(sid) {
+  controlsLocked = true;
   socket.emit("freeze_target", { target_sid: sid });
 }
 
 function flip3Target(sid) {
+  controlsLocked = true;
   socket.emit("flip3_target", { target_sid: sid});
 }
 
+let controlsLocked = false;
 
 socket.on("connect", () => {
   if (savedGameCode) {
@@ -64,7 +67,13 @@ socket.on("state", state => {
   players = document.getElementById("players")
   players.innerHTML = "";
 
+  let myIdx = -1;
+  let mySid = socket.id;
+
   state.players.forEach((p, i) => {
+    if (p.sid === mySid) {
+      myIdx = i;
+    }
     if (state.code) {
       sessionStorage.setItem("game_code", state.code);
     }
@@ -101,6 +110,19 @@ socket.on("state", state => {
     `;
     players.appendChild(div);
   });
+
+  let hitBtn = document.querySelector('button[onclick="hit()"]');
+  let stayBtn = document.querySelector('button[onclick="stay()"]');
+
+  if ('end_pending' in state) {
+    controlsLocked = false;
+  }
+  // Only the current player whose turn it is, and game started, can use buttons
+  const myTurn = state.turn === myIdx && state.started;
+  const controlsDisabled = !myTurn || controlsLocked || state.pending_freeze == socket.id || state.pending_flip3 == socket.id;
+
+  if (hitBtn) hitBtn.disabled = controlsDisabled;
+  if (stayBtn) stayBtn.disabled = controlsDisabled;
 
   startBtn.style.display = state.started ? "none" : "inline";
 

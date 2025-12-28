@@ -33,6 +33,16 @@ class Deck:
         self.cards = self._init_deck()
 
     def _init_deck(self):
+        # deterministic deck for test/debug (card is drawn from end of list)
+        # cards = [
+        #     Card(CardType.NUMBER, 5),
+        #     Card(CardType.NUMBER, 4),
+        #     Card(CardType.NUMBER, 3),
+        #     Card(CardType.FLIP_3),
+        #     Card(CardType.NUMBER, 2),
+        #     Card(CardType.NUMBER, 1),
+        #     Card(CardType.FLIP_3),
+        # ]
         cards = []
 
         for n in range(1,13):
@@ -41,7 +51,7 @@ class Deck:
         cards.append(Card(CardType.NUMBER, 0))
         cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
         cards += [Card(CardType.FREEZE) for _ in range(3)]
-        cards += [Card(CardType.FLIP_3) for _ in range(20)]
+        cards += [Card(CardType.FLIP_3) for _ in range(3)]
 
         for _ in range(10):
             random.shuffle(cards)
@@ -219,6 +229,8 @@ class Game:
         self.check_round_end()
 
     def force_draw_three(self, player):
+
+        partial_states = []
         for _ in range(3):
             if player.finished:
                 break
@@ -230,29 +242,38 @@ class Game:
                 if card.value in player.numbers:
                     if player.second_chance > 0:
                         player.second_chance -= 1
+                        partial_states.append(self.to_dict())
                     else:
                         player.busted = True
                         player.finished = True
+                        partial_states.append(self.to_dict())
                         break
                 else:
                     player.numbers.add(card.value)
                     if len(player.numbers) == 7:
                         player.flip7 = True
                         player.finished = True
+                        partial_states.append(self.to_dict())
                         break
+                    else:
+                        partial_states.append(self.to_dict())
 
             elif card.type == CardType.SECOND_CHANCE:
                 player.second_chance += 1
+                partial_states.append(self.to_dict())
 
             elif card.type == CardType.FREEZE:
                 # freeze drawn during forced draw = immediate effect
                 self.pending_freeze = player.sid
+                partial_states.append(self.to_dict())
                 break
 
             elif card.type == CardType.FLIP_3:
                 # chain another flip_3
                 self.pending_flip3 = player.sid
+                partial_states.append(self.to_dict())
                 break
+        return partial_states
 
 
     def apply_flip3(self, sid, target_sid):
@@ -266,15 +287,14 @@ class Game:
             self.pending_flip3 = None
             return
 
+        self.pending_flip3 = None
         # annotate the card
         giver.cards[-1].target = target.name
-
-        self.pending_flip3 = None
-
-        self.force_draw_three(target)
+        partial_states = self.force_draw_three(target)
 
         self.next_turn()
         self.check_round_end()
+        return partial_states
 
 
     def check_round_end(self):

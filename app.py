@@ -102,14 +102,22 @@ def freeze_target(data):
     game = games.get(player_game.get(request.sid))
     if game:
         game.apply_freeze(request.sid, data["target_sid"])
-        socketio.emit("state", game.to_dict(), room=game.code)
+        resp = game.to_dict()
+        resp.update({"end_pending": True})
+        socketio.emit("state", resp, room=game.code)
 
 @socketio.on("flip3_target")
 def flip3_target(data):
     game = games.get(player_game.get(request.sid))
     if game:
-        game.apply_flip3(request.sid, data["target_sid"])
-        socketio.emit("state", game.to_dict(), room=game.code)
+        partial_states = game.apply_flip3(request.sid, data["target_sid"])
+        for idx, elem in enumerate(partial_states):
+            socketio.emit("state", elem, room=game.code)
+            if idx < len(partial_states)-1:
+                socketio.sleep(1)
+        resp = game.to_dict()
+        resp.update({"end_pending": True})
+        socketio.emit("state", resp, room=game.code)
 
 
 
