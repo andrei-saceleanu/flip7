@@ -34,27 +34,28 @@ class Deck:
 
     def _init_deck(self):
         # deterministic deck for test/debug (card is drawn from end of list)
-        # cards = [
-        #     Card(CardType.NUMBER, 5),
-        #     Card(CardType.NUMBER, 4),
-        #     Card(CardType.NUMBER, 3),
-        #     Card(CardType.FLIP_3),
-        #     Card(CardType.NUMBER, 2),
-        #     Card(CardType.NUMBER, 1),
-        #     Card(CardType.FLIP_3),
-        # ]
-        cards = []
+        cards = [
+            Card(CardType.NUMBER, 6),
+            Card(CardType.NUMBER, 5),
+            Card(CardType.NUMBER, 4),
+            Card(CardType.NUMBER, 3),
+            Card(CardType.NUMBER, 2),
+            Card(CardType.NUMBER, 1),
+            Card(CardType.FLIP_3),
+            Card(CardType.FLIP_3),
+        ]
+        # cards = []
 
-        for n in range(1,13):
-            for _ in range(n):
-                cards.append(Card(CardType.NUMBER, n))
-        cards.append(Card(CardType.NUMBER, 0))
-        cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
-        cards += [Card(CardType.FREEZE) for _ in range(3)]
-        cards += [Card(CardType.FLIP_3) for _ in range(3)]
+        # for n in range(1,13):
+        #     for _ in range(n):
+        #         cards.append(Card(CardType.NUMBER, n))
+        # cards.append(Card(CardType.NUMBER, 0))
+        # cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
+        # cards += [Card(CardType.FREEZE) for _ in range(3)]
+        # cards += [Card(CardType.FLIP_3) for _ in range(3)]
 
-        for _ in range(10):
-            random.shuffle(cards)
+        # for _ in range(10):
+        #     random.shuffle(cards)
 
         return cards
 
@@ -116,8 +117,7 @@ class Game:
         self.deck = Deck()
         self.match_winner = None
 
-        self.pending_freeze = None
-        self.pending_flip3 = None
+        self.pending_actions = []
 
     def add_player(self, name, sid, player_id=None):
         existing = self.get_player_by_player_id(player_id) if player_id else None
@@ -159,8 +159,47 @@ class Game:
             if not self.players[self.turn].finished:
                 return
 
+    def check_round_end(self):
+        if not all(p.finished for p in self.players):
+            return
+
+        for p in self.players:
+            p.total_score += p.round_score()
+
+        max_score = -1
+        is_winner = False
+        for p in self.players:
+            if p.total_score >= WIN_SCORE:
+                if p.total_score > max_score:
+                    self.match_winner = p
+                    max_score = p.total_score
+                is_winner = True
+        if is_winner:
+            return
+
+        self.start_new_round()
+
+    def start_new_round(self):
+        self.round += 1
+        self.turn = (self.turn + 1) % len(self.players)
+        self.pending_actions = []
+        for p in self.players:
+            p.reset_round()
+
+    def stay(self, sid):
+        if not self.started or self.match_winner or self.pending_actions:
+            return
+
+        p = self.current_player()
+        if p.sid != sid:
+            return
+
+        p.finished = True
+        self.next_turn()
+        self.check_round_end()
+
     def hit(self, sid):
-        if not self.started or self.match_winner or self.pending_freeze or self.pending_flip3:
+        if not self.started or self.match_winner or self.pending_actions:
             return
 
         p = self.current_player()
@@ -187,30 +226,51 @@ class Game:
             p.second_chance += 1
 
         elif card.type == CardType.FREEZE:
-            self.pending_freeze = p.sid  # must choose target
+            self.pending_actions.append({"action": "freeze", "sid": p.sid})
             return
+
         elif card.type == CardType.FLIP_3:
-            self.pending_flip3 = p.sid
+            self.pending_actions.append({"action": "flip3", "sid": p.sid})
             return
         
         self.next_turn()
-
         self.check_round_end()
 
-    def stay(self, sid):
-        if not self.started or self.match_winner or self.pending_freeze or self.pending_flip3:
+    def apply_flip3(self, sid, target_sid):
+        # Find the last flip3 action
+        for i in range(len(self.pending_actions)-1, -1, -1):
+            a = self.pending_actions[i]
+            if a["action"] == "flip3" and a["sid"] == sid:
+                break
+        else:
             return
 
-        p = self.current_player()
-        if p.sid != sid:
+        giver = self.get_player_by_sid(sid)
+        target = self.get_player_by_sid(target_sid)
+
+        if not giver or not target or target.finished:
+            self.pending_actions.pop(i)
             return
 
-        p.finished = True
-        self.next_turn()
-        self.check_round_end()
+        giver.cards[-1].target = target.name
+        self.pending_actions.pop(i)  # Remove this flip3 action
+
+        # Add a draw3 action for the target at the top of the stack
+        self.pending_actions.append({
+            "action": "draw3",
+            "sid": target.sid,
+            "remaining": 3
+        })
+
+        return self.process_pending_actions()
 
     def apply_freeze(self, sid, target_sid):
-        if self.pending_freeze != sid:
+        # Find the last freeze targeting sid
+        for i in range(len(self.pending_actions)-1, -1, -1):
+            a = self.pending_actions[i]
+            if a["action"] == "freeze" and a["sid"] == sid:
+                break
+        else:
             return
 
         target = self.get_player_by_sid(target_sid)
@@ -219,119 +279,97 @@ class Game:
 
         target.finished = True
 
-        # annotate last freeze card
         freezer = self.get_player_by_sid(sid)
         freezer.cards[-1].target = target.name
 
-        self.pending_freeze = None
+        self.pending_actions.pop(i)
+        # Handle further pending actions:
+        return self.process_pending_actions()
 
-        self.next_turn()
-        self.check_round_end()
+    def process_pending_actions(self):
+        """Processes all pending actions, handling nested draw3/flip3/freeze."""
+        # We'll return a list of game states
+        game_states = []
+        player_of_last_action = None
+        while self.pending_actions:
+            action = self.pending_actions[-1]
+            if action["action"] == "draw3":
+                player = self.get_player_by_sid(action["sid"])
+                player_of_last_action = player
+                if player.finished:
+                    self.pending_actions.pop()
+                    continue
 
-    def force_draw_three(self, player):
+                card = self.deck.draw()
+                player.cards.append(card)
 
-        partial_states = []
-        for _ in range(3):
-            if player.finished:
-                break
-
-            card = self.deck.draw()
-            player.cards.append(card)
-
-            if card.type == CardType.NUMBER:
-                if card.value in player.numbers:
-                    if player.second_chance > 0:
-                        player.second_chance -= 1
-                        partial_states.append(self.to_dict())
+                if card.type == CardType.NUMBER:
+                    if card.value in player.numbers:
+                        if player.second_chance > 0:
+                            player.second_chance -= 1
+                        else:
+                            player.busted = True
+                            player.finished = True
+                            self.pending_actions.pop()
+                            game_states.append(self.to_dict())
+                            break
                     else:
-                        player.busted = True
-                        player.finished = True
-                        partial_states.append(self.to_dict())
-                        break
-                else:
-                    player.numbers.add(card.value)
-                    if len(player.numbers) == 7:
-                        player.flip7 = True
-                        player.finished = True
-                        partial_states.append(self.to_dict())
-                        break
-                    else:
-                        partial_states.append(self.to_dict())
+                        player.numbers.add(card.value)
+                        if len(player.numbers) == 7:
+                            player.flip7 = True
+                            player.finished = True
+                            self.pending_actions.pop()
+                            game_states.append(self.to_dict())
+                            break
+                    action["remaining"] -= 1
 
-            elif card.type == CardType.SECOND_CHANCE:
-                player.second_chance += 1
-                partial_states.append(self.to_dict())
+                elif card.type == CardType.SECOND_CHANCE:
+                    player.second_chance += 1
+                    action["remaining"] -= 1
 
-            elif card.type == CardType.FREEZE:
-                # freeze drawn during forced draw = immediate effect
-                self.pending_freeze = player.sid
-                partial_states.append(self.to_dict())
-                break
+                elif card.type == CardType.FREEZE:
+                    # Pause draw, push freeze
+                    action["remaining"] -= 1
+                    self.pending_actions.append({"action": "freeze", "sid": player.sid})
+                    game_states.append(self.to_dict())
+                    break
 
-            elif card.type == CardType.FLIP_3:
-                # chain another flip_3
-                self.pending_flip3 = player.sid
-                partial_states.append(self.to_dict())
-                break
-        return partial_states
+                elif card.type == CardType.FLIP_3:
+                    # Pause draw, push flip3
+                    action["remaining"] -= 1
+                    self.pending_actions.append({"action": "flip3", "sid": player.sid})
+                    game_states.append(self.to_dict())
+                    break
 
+                game_states.append(self.to_dict())
 
-    def apply_flip3(self, sid, target_sid):
-        if self.pending_flip3 != sid:
-            return
-
-        giver = self.get_player_by_sid(sid)
-        target = self.get_player_by_sid(target_sid)
-
-        if not giver or not target or target.finished:
-            self.pending_flip3 = None
-            return
-
-        self.pending_flip3 = None
-        # annotate the card
-        giver.cards[-1].target = target.name
-        partial_states = self.force_draw_three(target)
-
-        self.next_turn()
-        self.check_round_end()
-        return partial_states
-
-
-    def check_round_end(self):
-        if not all(p.finished for p in self.players):
-            return
-
-        for p in self.players:
-            p.total_score += p.round_score()
-
-        max_score = -1
-        is_winner = False
-        for p in self.players:
-            if p.total_score >= WIN_SCORE:
-                if p.total_score > max_score:
-                    self.match_winner = p
-                    max_score = p.total_score
-                is_winner = True
-        if is_winner:
-            return
-
-        self.start_new_round()
-
-    def start_new_round(self):
-        self.round += 1
-        self.turn = (self.turn + 1) % len(self.players)
-        self.pending_freeze = None
-        for p in self.players:
-            p.reset_round()
+                # Completed all 3 draws?
+                if action["remaining"] <= 0:
+                    self.pending_actions.pop()
+            else:
+                break  # Waiting for external choice (freeze/flip3)
+        
+        if not self.pending_actions or player_of_last_action.finished:
+            if player_of_last_action.finished:
+                self.pending_actions = []
+            self.next_turn()
+            self.check_round_end()
+        return game_states
 
     def to_dict(self):
+        pending_freeze = pending_flip3 = None
+        for a in reversed(self.pending_actions):
+            if not pending_freeze and a["action"] == "freeze":
+                pending_freeze = a["sid"]
+            if not pending_flip3 and a["action"] == "flip3":
+                pending_flip3 = a["sid"]
         return {
             "code": self.code,
             "started": self.started,
             "round": self.round,
             "turn": self.turn,
-            "pending_freeze": self.pending_freeze,
-            "pending_flip3": self.pending_flip3,
+            "pending_freeze": pending_freeze,
+            "pending_flip3": pending_flip3,
             "match_winner": self.match_winner.name if self.match_winner else None,
             "players": [p.to_dict() for p in self.players]
         }

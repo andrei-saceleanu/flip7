@@ -96,28 +96,41 @@ def stay():
         game.stay(request.sid)
         socketio.emit("state", game.to_dict(), room=game.code)
 
-
 @socketio.on("freeze_target")
 def freeze_target(data):
     game = games.get(player_game.get(request.sid))
     if game:
-        game.apply_freeze(request.sid, data["target_sid"])
-        resp = game.to_dict()
-        resp.update({"end_pending": True})
-        socketio.emit("state", resp, room=game.code)
+        partial_states = game.apply_freeze(request.sid, data["target_sid"])
+        if partial_states:
+            for idx, elem in enumerate(partial_states):
+                socketio.emit("state", elem, room=game.code)
+                if idx < len(partial_states) - 1:
+                    socketio.sleep(1)
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
+        else:
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
 
 @socketio.on("flip3_target")
 def flip3_target(data):
     game = games.get(player_game.get(request.sid))
     if game:
         partial_states = game.apply_flip3(request.sid, data["target_sid"])
-        for idx, elem in enumerate(partial_states):
-            socketio.emit("state", elem, room=game.code)
-            if idx < len(partial_states)-1:
-                socketio.sleep(1)
-        resp = game.to_dict()
-        resp.update({"end_pending": True})
-        socketio.emit("state", resp, room=game.code)
+        if partial_states:
+            for idx, elem in enumerate(partial_states):
+                socketio.emit("state", elem, room=game.code)
+                if idx < len(partial_states) - 1:
+                    socketio.sleep(1)
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
+        else:
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
 
 
 
