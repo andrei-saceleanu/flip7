@@ -57,7 +57,7 @@ class Deck:
         #     Card(CardType.NUMBER, 1),
         # ]
 
-        # cards = []
+        cards = []
 
         for n in range(1,13):
             for _ in range(n):
