@@ -15,7 +15,8 @@ class CardType(Enum):
     NUMBER = "number"
     SECOND_CHANCE = "second_chance"
     FREEZE = "freeze"
-    FLIP_3 = "flip_three" 
+    FLIP_3 = "flip_three"
+    BONUS = "bonus"
 
 
 class Card:
@@ -34,28 +35,50 @@ class Deck:
 
     def _init_deck(self):
         # deterministic deck for test/debug (card is drawn from end of list)
-        cards = [
-            Card(CardType.NUMBER, 6),
-            Card(CardType.NUMBER, 5),
-            Card(CardType.NUMBER, 4),
-            Card(CardType.NUMBER, 3),
-            Card(CardType.NUMBER, 2),
-            Card(CardType.NUMBER, 1),
-            Card(CardType.FLIP_3),
-            Card(CardType.FLIP_3),
-        ]
+        # cards = [
+        #     Card(CardType.NUMBER, 6),
+        #     Card(CardType.NUMBER, 5),
+        #     Card(CardType.NUMBER, 4),
+        #     Card(CardType.NUMBER, 3),
+        #     Card(CardType.NUMBER, 2),
+        #     Card(CardType.NUMBER, 1),
+        #     Card(CardType.FLIP_3),
+        #     Card(CardType.FLIP_3),
+        # ]
+
+        # cards = [
+        #     Card(CardType.NUMBER, 6),
+        #     Card(CardType.NUMBER, 5),
+        #     Card(CardType.NUMBER, 4),
+        #     Card(CardType.BONUS, "x2"),
+        #     Card(CardType.BONUS, "+3"),
+        #     Card(CardType.NUMBER, 3),
+        #     Card(CardType.NUMBER, 2),
+        #     Card(CardType.NUMBER, 1),
+        # ]
+
         # cards = []
 
-        # for n in range(1,13):
-        #     for _ in range(n):
-        #         cards.append(Card(CardType.NUMBER, n))
-        # cards.append(Card(CardType.NUMBER, 0))
-        # cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
-        # cards += [Card(CardType.FREEZE) for _ in range(3)]
-        # cards += [Card(CardType.FLIP_3) for _ in range(3)]
+        for n in range(1,13):
+            for _ in range(n):
+                cards.append(Card(CardType.NUMBER, n))
+        cards.append(Card(CardType.NUMBER, 0))
+        cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
+        cards += [Card(CardType.FREEZE) for _ in range(3)]
+        cards += [Card(CardType.FLIP_3) for _ in range(3)]
+        cards += [
+            Card(CardType.BONUS, "+2"),
+            Card(CardType.BONUS, "+4"),
+            Card(CardType.BONUS, "+6"),
+            Card(CardType.BONUS, "+8"),
+            Card(CardType.BONUS, "+10"),
+            Card(CardType.BONUS, "x2"),
+            Card(CardType.BONUS, "x2"),
+        ]
+        
 
-        # for _ in range(10):
-        #     random.shuffle(cards)
+        for _ in range(10):
+            random.shuffle(cards)
 
         return cards
 
@@ -85,7 +108,18 @@ class Player:
     def round_score(self):
         if self.busted:
             return 0
-        res = sum(self.numbers)
+        
+        add_bonuses = 0
+        multiplier = 1
+        for elem in self.cards:     
+            if elem.type == CardType.BONUS:
+                if elem.value[0] == "+":
+                    add_bonuses += int(elem.value[1:])
+                elif elem.value[0] == "x":
+                    multiplier *= int(elem.value[1:])
+        
+        res = (sum(self.numbers) + add_bonuses) * multiplier
+
         if self.flip7:
             res += BONUS_FLIP7
         return res

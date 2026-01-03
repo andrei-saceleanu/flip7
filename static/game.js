@@ -87,6 +87,7 @@ socket.on("state", state => {
       if (c.type === "second_chance") return `<div class="card">🔁</div>`;
       if (c.type === "flip_three") return `<div class="card">3️⃣${c.target ?? ""}</div>`
       if (c.type === "freeze") return `<div class="card">❄️${c.target ?? ""}</div>`;
+      if (c.type === "bonus") return `<div class="card">${c.value}</div>`;
     }).join("");
 
     const freezeBtn =
