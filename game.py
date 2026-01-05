@@ -57,6 +57,14 @@ class Deck:
         #     Card(CardType.NUMBER, 1),
         # ]
 
+        # cards = [
+        #     Card(CardType.FREEZE),
+        #     Card(CardType.FREEZE),
+        #     Card(CardType.NUMBER, 3),
+        #     Card(CardType.NUMBER, 2),
+        #     Card(CardType.NUMBER, 1),
+        # ]
+
         cards = []
 
         for n in range(1,13):
@@ -383,8 +391,8 @@ class Game:
             else:
                 break  # Waiting for external choice (freeze/flip3)
         
-        if not self.pending_actions or player_of_last_action.finished:
-            if player_of_last_action.finished:
+        if not self.pending_actions or (player_of_last_action is not None and player_of_last_action.finished):
+            if player_of_last_action is not None and player_of_last_action.finished:
                 self.pending_actions = []
             self.next_turn()
             self.check_round_end()
