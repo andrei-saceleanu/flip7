@@ -103,8 +103,8 @@ socket.on("state", state => {
 
     div.innerHTML = `
       <h3>${p.name}</h3>
-      <div>Round: ${p.round_score}</div>
-      <div>Total: ${p.total_score}</div>
+      <div>Round score: ${p.round_score}</div>
+      <div>Total score: ${p.total_score}</div>
       <div class="cards">${cards}</div>
       ${freezeBtn}
       ${flip3Btn}
