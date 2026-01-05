@@ -43,3 +43,14 @@ body {
 .controls {
   margin-top: 20px;
 }
+
+.card.clickable {
+  cursor: pointer;
+  outline: 2px solid #007bff;
+  transition: transform 0.1s cubic-bezier(.4,2,.6,1);
+}
+
+.card.clickable:hover {
+  transform: scale(1.15);
+  z-index: 2;
+}

@@ -17,6 +17,7 @@ class CardType(Enum):
     FREEZE = "freeze"
     FLIP_3 = "flip_three"
     BONUS = "bonus"
+    DISCARD = "discard"
 
 
 class Card:
@@ -65,28 +66,50 @@ class Deck:
         #     Card(CardType.NUMBER, 1),
         # ]
 
-        cards = []
-
-        for n in range(1,13):
-            for _ in range(n):
-                cards.append(Card(CardType.NUMBER, n))
-        cards.append(Card(CardType.NUMBER, 0))
-        cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
-        cards += [Card(CardType.FREEZE) for _ in range(3)]
-        cards += [Card(CardType.FLIP_3) for _ in range(3)]
-        cards += [
-            Card(CardType.BONUS, "+2"),
-            Card(CardType.BONUS, "+4"),
-            Card(CardType.BONUS, "+6"),
-            Card(CardType.BONUS, "+8"),
-            Card(CardType.BONUS, "+10"),
-            Card(CardType.BONUS, "x2"),
-            Card(CardType.BONUS, "x2"),
+        cards = [
+            Card(CardType.NUMBER, 7),
+            Card(CardType.NUMBER, 6),
+            Card(CardType.DISCARD),
+            Card(CardType.NUMBER, 5),
+            Card(CardType.NUMBER, 4),
+            Card(CardType.NUMBER, 3),
+            Card(CardType.NUMBER, 2),
+            Card(CardType.NUMBER, 1),
         ]
+
+        # cards = [
+        #     Card(CardType.NUMBER, 6),
+        #     Card(CardType.NUMBER, 5),
+        #     Card(CardType.NUMBER, 4),
+        #     Card(CardType.NUMBER, 3),
+        #     Card(CardType.NUMBER, 1),
+        #     Card(CardType.DISCARD),
+        #     Card(CardType.NUMBER, 1),
+        #     Card(CardType.FLIP_3),
+        # ]
+
+        # cards = []
+
+        # for n in range(1,13):
+        #     for _ in range(n):
+        #         cards.append(Card(CardType.NUMBER, n))
+        # cards.append(Card(CardType.NUMBER, 0))
+        # cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
+        # cards += [Card(CardType.FREEZE) for _ in range(3)]
+        # cards += [Card(CardType.FLIP_3) for _ in range(3)]
+        # cards += [
+        #     Card(CardType.BONUS, "+2"),
+        #     Card(CardType.BONUS, "+4"),
+        #     Card(CardType.BONUS, "+6"),
+        #     Card(CardType.BONUS, "+8"),
+        #     Card(CardType.BONUS, "+10"),
+        #     Card(CardType.BONUS, "x2"),
+        #     Card(CardType.BONUS, "x2"),
+        # ]
         
 
-        for _ in range(10):
-            random.shuffle(cards)
+        # for _ in range(10):
+        #     random.shuffle(cards)
 
         return cards
 
@@ -275,8 +298,67 @@ class Game:
             self.pending_actions.append({"action": "flip3", "sid": p.sid})
             return
         
+        elif card.type == CardType.DISCARD:
+            # Step 1 DISCARD: the "choose target" phase (player who drew discard chooses self or another player)
+            self.pending_actions.append({"action": "discard_choose_target", "sid": p.sid, "card_idx": len(p.cards)-1})
+            return
+        
         self.next_turn()
         self.check_round_end()
+
+    def apply_discard_choose_target(self, sid, target_sid, card_idx):
+        # Validate request: only the player who drew the DISCARD can choose, and card_idx must match their most recent card
+        for i in range(len(self.pending_actions)-1, -1, -1):
+            a = self.pending_actions[i]
+            if (
+                a["action"] == "discard_choose_target"
+                and a["sid"] == sid
+                and a["card_idx"] == card_idx
+            ):
+                break
+        else:
+            return
+
+        target = self.get_player_by_sid(target_sid)
+        if not target or len(target.cards) == 0:
+            self.pending_actions.pop(i)
+            return
+
+        # Remove the choose_target action; insert a pending action telling the target to choose what to discard
+        self.pending_actions.pop(i)
+        # Record target info into the discard card
+        source = self.get_player_by_sid(sid)
+        if source and len(source.cards) > card_idx:
+            source.cards[card_idx].target = target.name if sid != target_sid else "(self)"
+        # Step 2 DISCARD: the "choose card" phase
+        self.pending_actions.append({"action": "discard_choose_card", "initiator_sid": sid, "target_sid": target_sid})
+        return self.process_pending_actions()
+
+    def apply_discard_choose_card(self, sid, card_idx):
+        # This is called by the player who must choose a card to discard from own hand
+        for i in range(len(self.pending_actions)-1, -1, -1):
+            a = self.pending_actions[i]
+            if (
+                a["action"] == "discard_choose_card"
+                and a["target_sid"] == sid
+            ):
+                break
+        else:
+            return
+
+        target: Player = self.get_player_by_sid(sid)
+        if not target or card_idx < 0 or card_idx >= len(target.cards):
+            self.pending_actions.pop(i)
+            return
+
+        card_to_remove: Card = target.cards[card_idx]
+        if card_to_remove.type == CardType.NUMBER:
+            # Remove that card from the target's hand
+            target.cards.pop(card_idx)
+            target.numbers.remove(card_to_remove.value)
+
+        self.pending_actions.pop(i)
+        return self.process_pending_actions()
 
     def apply_flip3(self, sid, target_sid):
         # Find the last flip3 action
@@ -382,6 +464,12 @@ class Game:
                     self.pending_actions.append({"action": "flip3", "sid": player.sid})
                     game_states.append(self.to_dict())
                     break
+                elif card.type == CardType.DISCARD:
+                    # Pause draw, push discard and start from step 1 (choose target)
+                    action["remaining"] -= 1
+                    self.pending_actions.append({"action": "discard_choose_target", "sid": player.sid, "card_idx": len(player.cards)-1})
+                    game_states.append(self.to_dict())
+                    break
 
                 game_states.append(self.to_dict())
 
@@ -389,7 +477,7 @@ class Game:
                 if action["remaining"] <= 0:
                     self.pending_actions.pop()
             else:
-                break  # Waiting for external choice (freeze/flip3)
+                break  # Waiting for external choice (freeze/flip3/discard)
         
         if not self.pending_actions or (player_of_last_action is not None and player_of_last_action.finished):
             if player_of_last_action is not None and player_of_last_action.finished:
@@ -399,12 +487,20 @@ class Game:
         return game_states
 
     def to_dict(self):
-        pending_freeze = pending_flip3 = None
+        pending_freeze = pending_flip3 = pending_discard_choose_target = pending_discard_choose_card = None
+        discard_choose_target_info = {}
+        discard_choose_card_info = {}
         for a in reversed(self.pending_actions):
             if not pending_freeze and a["action"] == "freeze":
                 pending_freeze = a["sid"]
             if not pending_flip3 and a["action"] == "flip3":
                 pending_flip3 = a["sid"]
+            if not pending_discard_choose_target and a["action"] == "discard_choose_target":
+                pending_discard_choose_target = a["sid"]
+                discard_choose_target_info = {"card_idx": a["card_idx"]}
+            if not pending_discard_choose_card and a["action"] == "discard_choose_card":
+                pending_discard_choose_card = a["target_sid"]
+                discard_choose_card_info = {"initiator_sid": a["initiator_sid"]}
         return {
             "code": self.code,
             "started": self.started,
@@ -412,6 +508,10 @@ class Game:
             "turn": self.turn,
             "pending_freeze": pending_freeze,
             "pending_flip3": pending_flip3,
+            "pending_discard_choose_target": pending_discard_choose_target,
+            "discard_choose_target_info": discard_choose_target_info,
+            "pending_discard_choose_card": pending_discard_choose_card,
+            "discard_choose_card_info": discard_choose_card_info,
             "match_winner": self.match_winner.name if self.match_winner else None,
             "players": [p.to_dict() for p in self.players]
         }

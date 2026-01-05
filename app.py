@@ -132,7 +132,50 @@ def flip3_target(data):
             resp.update({"end_pending": True})
             socketio.emit("state", resp, room=game.code)
 
+@socketio.on("discard_choose_target")
+def discard_choose_target(data):
+    game = games.get(player_game.get(request.sid))
+    if game:
+        # chooses which player to use the discard on (could be self)
+        partial_states = game.apply_discard_choose_target(
+            request.sid,
+            data["target_sid"],
+            data["card_idx"],
+        )
+        if partial_states:
+            for idx, elem in enumerate(partial_states):
+                socketio.emit("state", elem, room=game.code)
+                if idx < len(partial_states) - 1:
+                    socketio.sleep(1)
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
+        else:
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
 
+@socketio.on("discard_choose_card")
+def discard_choose_card(data):
+    game = games.get(player_game.get(request.sid))
+    if game:
+        # The actual player discards a card of his choice
+        partial_states = game.apply_discard_choose_card(
+            request.sid,
+            data["card_idx"],
+        )
+        if partial_states:
+            for idx, elem in enumerate(partial_states):
+                socketio.emit("state", elem, room=game.code)
+                if idx < len(partial_states) - 1:
+                    socketio.sleep(1)
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
+        else:
+            resp = game.to_dict()
+            resp.update({"end_pending": True})
+            socketio.emit("state", resp, room=game.code)
 
 # ---------- Disconnect handling ----------
 
