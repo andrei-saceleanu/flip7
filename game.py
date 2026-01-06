@@ -29,94 +29,50 @@ class Card:
     def to_dict(self):
         return {"type": self.type.value, "value": self.value}
 
-
 class Deck:
-    def __init__(self):
-        self.cards = self._init_deck()
+    def __init__(self, cards=None):
+        if cards is None:
+            self.cards = self._init_deck()
+            self.deterministic = False
+        else:
+            self.cards = cards
+            self.backup = [elem for elem in cards]
+            self.deterministic = True
 
     def _init_deck(self):
-        # deterministic deck for test/debug (card is drawn from end of list)
-        # cards = [
-        #     Card(CardType.NUMBER, 6),
-        #     Card(CardType.NUMBER, 5),
-        #     Card(CardType.NUMBER, 4),
-        #     Card(CardType.NUMBER, 3),
-        #     Card(CardType.NUMBER, 2),
-        #     Card(CardType.NUMBER, 1),
-        #     Card(CardType.FLIP_3),
-        #     Card(CardType.FLIP_3),
-        # ]
+        
+        cards = []
 
-        # cards = [
-        #     Card(CardType.NUMBER, 6),
-        #     Card(CardType.NUMBER, 5),
-        #     Card(CardType.NUMBER, 4),
-        #     Card(CardType.BONUS, "x2"),
-        #     Card(CardType.BONUS, "+3"),
-        #     Card(CardType.NUMBER, 3),
-        #     Card(CardType.NUMBER, 2),
-        #     Card(CardType.NUMBER, 1),
-        # ]
-
-        # cards = [
-        #     Card(CardType.FREEZE),
-        #     Card(CardType.FREEZE),
-        #     Card(CardType.NUMBER, 3),
-        #     Card(CardType.NUMBER, 2),
-        #     Card(CardType.NUMBER, 1),
-        # ]
-
-        cards = [
-            Card(CardType.NUMBER, 7),
-            Card(CardType.NUMBER, 6),
-            Card(CardType.DISCARD),
-            Card(CardType.NUMBER, 5),
-            Card(CardType.NUMBER, 4),
-            Card(CardType.NUMBER, 3),
-            Card(CardType.NUMBER, 2),
-            Card(CardType.NUMBER, 1),
+        for n in range(1,13):
+            for _ in range(n):
+                cards.append(Card(CardType.NUMBER, n))
+        cards.append(Card(CardType.NUMBER, 0))
+        cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
+        cards += [Card(CardType.FREEZE) for _ in range(3)]
+        cards += [Card(CardType.FLIP_3) for _ in range(3)]
+        cards += [Card(CardType.DISCARD) for _ in range(5)]
+        cards += [
+            Card(CardType.BONUS, "+2"),
+            Card(CardType.BONUS, "+4"),
+            Card(CardType.BONUS, "+6"),
+            Card(CardType.BONUS, "+8"),
+            Card(CardType.BONUS, "+10"),
+            Card(CardType.BONUS, "x2"),
+            Card(CardType.BONUS, "x2"),
         ]
 
-        # cards = [
-        #     Card(CardType.NUMBER, 6),
-        #     Card(CardType.NUMBER, 5),
-        #     Card(CardType.NUMBER, 4),
-        #     Card(CardType.NUMBER, 3),
-        #     Card(CardType.NUMBER, 1),
-        #     Card(CardType.DISCARD),
-        #     Card(CardType.NUMBER, 1),
-        #     Card(CardType.FLIP_3),
-        # ]
-
-        # cards = []
-
-        # for n in range(1,13):
-        #     for _ in range(n):
-        #         cards.append(Card(CardType.NUMBER, n))
-        # cards.append(Card(CardType.NUMBER, 0))
-        # cards += [Card(CardType.SECOND_CHANCE) for _ in range(3)]
-        # cards += [Card(CardType.FREEZE) for _ in range(3)]
-        # cards += [Card(CardType.FLIP_3) for _ in range(3)]
-        # cards += [
-        #     Card(CardType.BONUS, "+2"),
-        #     Card(CardType.BONUS, "+4"),
-        #     Card(CardType.BONUS, "+6"),
-        #     Card(CardType.BONUS, "+8"),
-        #     Card(CardType.BONUS, "+10"),
-        #     Card(CardType.BONUS, "x2"),
-        #     Card(CardType.BONUS, "x2"),
-        # ]
-        
-
-        # for _ in range(10):
-        #     random.shuffle(cards)
+        for _ in range(10):
+            random.shuffle(cards)
 
         return cards
 
     def draw(self):
         res = self.cards.pop()
         if len(self.cards) == 0:
-            self.cards = self._init_deck()
+            if not self.deterministic:
+                self.cards = self._init_deck() 
+            else:
+                self.cards = [elem for elem in self.backup]
         return res
 
 
@@ -172,14 +128,14 @@ class Player:
 
 
 class Game:
-    def __init__(self, owner_sid):
+    def __init__(self, owner_sid, cards=None):
         self.code = generate_code()
         self.owner_sid = owner_sid
         self.players = []
         self.started = False
         self.round = 1
         self.turn = 0
-        self.deck = Deck()
+        self.deck = Deck(cards=cards)
         self.match_winner = None
 
         self.pending_actions = []
