@@ -255,9 +255,11 @@ class Game:
             return
         
         elif card.type == CardType.DISCARD:
-            # Step 1 DISCARD: the "choose target" phase (player who drew discard chooses self or another player)
-            self.pending_actions.append({"action": "discard_choose_target", "sid": p.sid, "card_idx": len(p.cards)-1})
-            return
+            anyNumberCards = any([len(elem.numbers) > 0 for elem in self.players])
+            if anyNumberCards: # if no one has number cards to discard, act as no op
+                # Step 1 DISCARD: the "choose target" phase (player who drew discard chooses self or another player)
+                self.pending_actions.append({"action": "discard_choose_target", "sid": p.sid, "card_idx": len(p.cards)-1})
+                return
         
         self.next_turn()
         self.check_round_end()

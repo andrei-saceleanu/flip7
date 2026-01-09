@@ -132,7 +132,7 @@ socket.on("state", state => {
     // Step 1: If we're the player who must choose the DISCARD target
     if (state.pending_discard_choose_target === socket.id && !p.finished && p.sid === socket.id) {
       const cardIdx = state.discard_choose_target_info.card_idx;
-      const selectable = state.players.filter(q => !q.finished && q.cards.length > 0);
+      const selectable = state.players.filter(q => !q.finished && q.numbers.length > 0);
       discardStep = `<div>
         <b>Choose a player to discard one:</b><br>
         ${selectable.map(pl =>
