@@ -199,13 +199,30 @@ def test_game_freeze_other():
     assert g.players[0].cards[0].type == CardType.FREEZE
     pending_freeze =  g.to_dict()["pending_freeze"]
     assert pending_freeze is not None and pending_freeze == "p1"
-    maybe_proceed(g)
 
     g.apply_freeze("p1", "p2")
     assert g.players[1].finished == True
     assert g.players[0].finished == False
     assert g.turn == 0
-    maybe_proceed(g)
+
+def test_game_flip3_flip_all_three():
+
+    g = Game(owner_sid="p1", cards=make_deck([(CardType.FLIP_3,), (CardType.NUMBER, 1), (CardType.NUMBER, 2), (CardType.NUMBER, 3)]))
+    g.add_player("P1", "p1")
+    g.add_player("P2", "p2")
+    g.start("p1")
+
+    g.hit("p1")
+    assert len(g.players[0].cards) == 1
+    assert g.players[0].cards[0].type == CardType.FLIP_3
+    pending_flip3 =  g.to_dict()["pending_flip3"]
+    assert pending_flip3 is not None and pending_flip3 == "p1"
+
+    g.apply_flip3("p1", "p2")
+    assert len(g.players[1].cards) == 3
+    assert g.players[1].round_score() == 6
+    assert g.turn == 1
+    
 
 def maybe_proceed(g: Game):
     d = g.to_dict()
