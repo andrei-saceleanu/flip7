@@ -130,7 +130,7 @@ def make_card(card_type, value=None):  # helper for clarity
 
 def make_deck(card_specs):
     # card_specs is list of (CardType, value)
-    return [Card(*spec) for spec in card_specs]
+    return [Card(*spec) for spec in reversed(card_specs)]
 
 def basic_two_players():
     g = Game(owner_sid='sidA', cards=make_deck([
@@ -155,16 +155,19 @@ def test_game_add_and_start():
 def test_game_basic_hit_and_stay():
     g = basic_two_players()
     g.hit("sidA")
-
     assert len(g.players[0].cards) == 1
-    assert g.turn == 1
+    maybe_proceed(g)
 
     g.stay("sidB")
     assert g.players[1].finished
     assert g.turn == 0
-    g.stay("sidA")
+    maybe_proceed(g)
 
-    # Both finished: a new round should start immediately 
+    g.stay("sidA")
+    assert g.players[0].finished
+    maybe_proceed(g)
+
+    # Both finished: a new round should start 
     assert g.round == 2
     assert len(g.players[0].cards) == 0
     assert len(g.players[1].cards) == 0
@@ -175,14 +178,39 @@ def test_game_bust_by_duplicate_number():
     g = Game(owner_sid='host', cards=make_deck([(CardType.NUMBER,2),(CardType.NUMBER,2)]))
     g.add_player("P", "host")
     g.start('host')
+
     g.hit("host")
     assert not g.players[0].busted
+    maybe_proceed(g)
+
     g.hit("host")   
-    # After bust, total score should be 0 (round has auto-increased)
     assert g.players[0].total_score == 0
+    maybe_proceed(g)
 
+def test_game_freeze_other():
 
+    g = Game(owner_sid="p1", cards=make_deck([(CardType.FREEZE,), (CardType.NUMBER, 1)]))
+    g.add_player("P1", "p1")
+    g.add_player("P2", "p2")
+    g.start("p1")
 
+    g.hit("p1")
+    assert len(g.players[0].cards) == 1
+    assert g.players[0].cards[0].type == CardType.FREEZE
+    pending_freeze =  g.to_dict()["pending_freeze"]
+    assert pending_freeze is not None and pending_freeze == "p1"
+    maybe_proceed(g)
+
+    g.apply_freeze("p1", "p2")
+    assert g.players[1].finished == True
+    assert g.players[0].finished == False
+    assert g.turn == 0
+    maybe_proceed(g)
+
+def maybe_proceed(g: Game):
+    d = g.to_dict()
+    if d["pending_round_reset"]:
+        g.proceed_round()
 
 def extract_stats(draws):
     card_types = [c.type for c in draws]

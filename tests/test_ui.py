@@ -63,7 +63,6 @@ def test_game_turn_flow():
         # Click Hit and check that a card appears
         page1.click('button:has-text("Hit")')
         page1.wait_for_selector(".card")
-        print(page1.locator(".card").count())
         expect(page1.locator(".card")).to_have_count(1)
 
         browser.close()

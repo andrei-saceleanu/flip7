@@ -2,14 +2,18 @@ const socket = io();
 
 const nameInput = document.getElementById('name');
 const codeInput = document.getElementById('code');
+const savedGameCode = sessionStorage.getItem("game_code");
+const roundWait = 5;
 
+let roundModalTimer = null;
+let roundModalRunning = false;
 let playerId = sessionStorage.getItem("player_id");
+let controlsLocked = false;
+
 if (!playerId) {
   playerId = crypto.randomUUID();
   sessionStorage.setItem("player_id", playerId);
 }
-
-const savedGameCode = sessionStorage.getItem("game_code");
 
 function createGame() {
   socket.emit("create_game", { name: nameInput.value, player_id: playerId});
@@ -50,8 +54,43 @@ function discardChooseCard(cardIdx) {
   socket.emit("discard_choose_card", { card_idx: cardIdx });
 }
 
+function showRoundModal(state) {
+  const modal = document.getElementById("roundModal");
+  modal.style.display = "flex";
+  // List scores for all players:
+  let summary = state.players.map((p, i) =>
+    `<div>${p.name}: Round +${p.round_score} | Total: ${p.total_score}</div>`
+  ).join("");
+  document.getElementById("modalScores").innerHTML = summary;
 
-let controlsLocked = false;
+  let roundModalCountdown = roundWait;
+  document.getElementById("modalNextCountdown").innerText = `Next round starts in: ${roundModalCountdown}`;
+  
+  // Use SID to make only ONE user send proceed_round (lowest sid is simplest, or owner if you prefer)
+  let allSids = state.players.map(p => p.sid).filter(Boolean).sort();
+  let I_am_first = (socket.id && allSids.length > 0 && socket.id === allSids[0]);
+
+  roundModalTimer = setInterval(() => {
+    roundModalCountdown--;
+    document.getElementById("modalNextCountdown").innerText = `Next round starts in: ${roundModalCountdown}`;
+    if (roundModalCountdown <= 0) {
+      clearInterval(roundModalTimer);
+      if (I_am_first) {
+        socket.emit("proceed_round");
+      }
+      // The modal will close when the new state comes in and .pending_round_reset is false.
+    }
+  }, 1000);
+}
+
+function hideRoundModal() {
+  roundModalRunning = false;
+  const modal = document.getElementById("roundModal");
+  if (roundModalTimer) clearInterval(roundModalTimer);
+  modal.style.display = "none";
+}
+
+
 
 socket.on("connect", () => {
   if (savedGameCode) {
@@ -169,7 +208,8 @@ socket.on("state", state => {
     state.pending_freeze == socket.id ||
     state.pending_flip3 == socket.id ||
     state.pending_discard_choose_target == socket.id ||
-    state.pending_discard_choose_card != null;
+    state.pending_discard_choose_card != null ||
+    state.pending_round_reset || state.match_winner != null;
 
   if (hitBtn) hitBtn.disabled = controlsDisabled;
   if (stayBtn) stayBtn.disabled = controlsDisabled;
@@ -179,7 +219,26 @@ socket.on("state", state => {
   if (state.match_winner) {
     alert(`🏆 ${state.match_winner} wins the match!`);
     sessionStorage.removeItem("game_code");
+    return;
   }
+
+
+  // Show modal only if round ended and new round is waiting (pending_round_reset)
+  if (state.pending_round_reset) {
+    if (!roundModalRunning) {
+      roundModalRunning = true;
+      showRoundModal(state);
+    }
+    // block further UI updates (except the modal) while pending_round_reset
+    return;
+  } else {
+    // Hide modal (if present) once the next round started
+    hideRoundModal();
+  }
+
+  
+
+  
 });
 
 socket.on("error", alert);

@@ -139,6 +139,7 @@ class Game:
         self.match_winner = None
 
         self.pending_actions = []
+        self.pending_round_reset = False
 
     def add_player(self, name, sid, player_id=None):
         existing = self.get_player_by_player_id(player_id) if player_id else None
@@ -198,7 +199,8 @@ class Game:
         if is_winner:
             return
 
-        self.start_new_round()
+        self.pending_round_reset = True
+        # self.start_new_round()
 
     def start_new_round(self):
         self.round += 1
@@ -263,6 +265,11 @@ class Game:
         
         self.next_turn()
         self.check_round_end()
+
+    def proceed_round(self):
+        if self.pending_round_reset:
+            self.start_new_round()
+            self.pending_round_reset = False
 
     def apply_discard_choose_target(self, sid, target_sid, card_idx):
         # Validate request: only the player who drew the DISCARD can choose, and card_idx must match their most recent card
@@ -464,6 +471,7 @@ class Game:
             "started": self.started,
             "round": self.round,
             "turn": self.turn,
+            "pending_round_reset": self.pending_round_reset,
             "pending_freeze": pending_freeze,
             "pending_flip3": pending_flip3,
             "pending_discard_choose_target": pending_discard_choose_target,

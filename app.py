@@ -177,6 +177,13 @@ def discard_choose_card(data):
             resp.update({"end_pending": True})
             socketio.emit("state", resp, room=game.code)
 
+@socketio.on("proceed_round")
+def proceed_round():
+    game = games.get(player_game.get(request.sid))
+    if game:
+        game.proceed_round()
+        socketio.emit("state", game.to_dict(), room=game.code)
+
 # ---------- Disconnect handling ----------
 
 @socketio.on("disconnect")
