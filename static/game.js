@@ -235,9 +235,6 @@ socket.on("state", state => {
     // Hide modal (if present) once the next round started
     hideRoundModal();
   }
-
-  
-
   
 });
 
