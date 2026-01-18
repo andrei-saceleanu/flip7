@@ -32,6 +32,9 @@ body {
   align-items: center;
   justify-content: center;
   background: #fff;
+}
+
+.card.deal-animate {
   animation: deal 0.3s ease;
 }
 

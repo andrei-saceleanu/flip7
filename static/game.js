@@ -9,6 +9,9 @@ let roundModalTimer = null;
 let roundModalRunning = false;
 let playerId = sessionStorage.getItem("player_id");
 let controlsLocked = false;
+let previousCardCounts = {};   // {player_id: numCards}
+let previousRound = null;
+let isFirstState = true; // true at the beginning or after a refresh
 
 if (!playerId) {
   playerId = crypto.randomUUID();
@@ -144,6 +147,11 @@ socket.on("state", state => {
   let myIdx = -1;
   let mySid = socket.id;
 
+  let isNewRound = (previousRound !== state.round);
+  if (isNewRound) {
+    previousCardCounts = {};
+  }
+
   state.players.forEach((p, i) => {
     if (p.sid === mySid) {
       myIdx = i;
@@ -159,6 +167,13 @@ socket.on("state", state => {
     // Detect if this is our hand AND we're being prompted to discard
     let myTurnToDiscard = state.pending_discard_choose_card === socket.id && !p.finished && p.sid === socket.id;
 
+
+    let animateDealing = false;
+    let prevCards = previousCardCounts[p.player_id] || 0;
+    if (!isFirstState) {
+      animateDealing = p.cards.length > prevCards;
+    }
+   
     // --- Card rendering ---
     let cards = p.cards.map((c, cidx) => {
       let display;
@@ -170,11 +185,16 @@ socket.on("state", state => {
       else if (c.type === "discard") display = `🗑️${c.target ?? ""}`;
       else display = c.type;
 
+      let cardClass = "card";
+      if (animateDealing && cidx === p.cards.length - 1) {
+        cardClass += " deal-animate";
+      }
+
       if (myTurnToDiscard && c.type === "number") {
         // Make each card clickable for discarding
-        return `<div class="card clickable" onclick="discardChooseCard(${cidx})">${display}</div>`;
+        return `<div class="${cardClass} clickable" onclick="discardChooseCard(${cidx})">${display}</div>`;
       } else {
-        return `<div class="card">${display}</div>`;
+        return `<div class="${cardClass}">${display}</div>`;
       }
     }).join("");
 
@@ -217,6 +237,13 @@ socket.on("state", state => {
     `;
     players.appendChild(div);
   });
+
+  previousRound = state.round;
+  previousCardCounts = {};
+  state.players.forEach(p => {
+    previousCardCounts[p.player_id] = p.cards.length;
+  });
+  isFirstState = false;
 
   let hitBtn = document.querySelector('button[onclick="hit()"]');
   let stayBtn = document.querySelector('button[onclick="stay()"]');
