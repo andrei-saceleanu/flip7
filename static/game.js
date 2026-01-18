@@ -15,11 +15,29 @@ if (!playerId) {
   sessionStorage.setItem("player_id", playerId);
 }
 
+function showInputError(msg) {
+  const errorDiv = document.getElementById('inputError');
+  errorDiv.innerText = msg;
+  errorDiv.style.display = "block";
+  setTimeout(() => {
+    errorDiv.style.display = "none";
+  }, 2200);
+}
+
+
 function createGame() {
+  if (!nameInput.value.trim()) {
+    showInputError("Please enter your name.");
+    return;
+  }
   socket.emit("create_game", { name: nameInput.value, player_id: playerId});
 }
 
 function joinGame() {
+  if (!nameInput.value.trim() || !codeInput.value.trim()) {
+    showInputError("Please enter your name and game code.");
+    return;
+  }
   socket.emit("join_game", { name: nameInput.value, code: codeInput.value, player_id: playerId});
 }
 
@@ -214,7 +232,7 @@ socket.on("state", state => {
   if (hitBtn) hitBtn.disabled = controlsDisabled;
   if (stayBtn) stayBtn.disabled = controlsDisabled;
 
-  startBtn.style.display = state.started ? "none" : "inline";
+  startBtn.style.display = (!state.started && state.owner_player_id === playerId) ? "inline" : "none";
 
   if (state.match_winner) {
     alert(`🏆 ${state.match_winner} wins the match!`);

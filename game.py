@@ -128,9 +128,9 @@ class Player:
 
 
 class Game:
-    def __init__(self, owner_sid, cards=None):
+    def __init__(self, owner_player_id, cards=None):
         self.code = generate_code()
-        self.owner_sid = owner_sid
+        self.owner_player_id = owner_player_id
         self.players = []
         self.started = False
         self.round = 1
@@ -157,7 +157,9 @@ class Game:
         return p
 
     def start(self, sid):
-        if sid != self.owner_sid:
+        # find the player by sid and check their player_id is owner
+        player = next((p for p in self.players if p.sid == sid), None)
+        if not player or player.player_id != self.owner_player_id:
             return False
         self.started = True
         return True
@@ -200,7 +202,6 @@ class Game:
             return
 
         self.pending_round_reset = True
-        # self.start_new_round()
 
     def start_new_round(self):
         self.round += 1
@@ -479,5 +480,6 @@ class Game:
             "pending_discard_choose_card": pending_discard_choose_card,
             "discard_choose_card_info": discard_choose_card_info,
             "match_winner": self.match_winner.name if self.match_winner else None,
-            "players": [p.to_dict() for p in self.players]
+            "players": [p.to_dict() for p in self.players],
+            "owner_player_id": self.owner_player_id
         }

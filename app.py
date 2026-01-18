@@ -19,7 +19,7 @@ def index():
 
 @socketio.on("create_game")
 def create_game(data):
-    game = Game(owner_sid=request.sid)
+    game = Game(owner_player_id=data.get("player_id"))
     game.add_player(
         data["name"],
         request.sid,
