@@ -142,6 +142,11 @@ class Game:
         self.pending_round_reset = False
 
     def add_player(self, name, sid, player_id=None):
+
+        for p in self.players:
+            if p.name.strip().lower() == name.strip().lower():
+                return None
+
         existing = self.get_player_by_player_id(player_id) if player_id else None
 
         if existing:
@@ -436,6 +441,8 @@ class Game:
                     self.pending_actions.append({"action": "discard_choose_target", "sid": player.sid, "card_idx": len(player.cards)-1})
                     game_states.append(self.to_dict())
                     break
+                elif card.type == CardType.BONUS:
+                    action["remaining"] -= 1
 
                 game_states.append(self.to_dict())
 

@@ -19,9 +19,16 @@ function showInputError(msg) {
   const errorDiv = document.getElementById('inputError');
   errorDiv.innerText = msg;
   errorDiv.style.display = "block";
+  errorDiv.style.opacity = "1";
+  errorDiv.style.pointerEvents = "auto";
+  // animate out after toast display
+  setTimeout(() => {
+    errorDiv.style.opacity = "0";
+    errorDiv.style.pointerEvents = "none";
+  }, 2200);
   setTimeout(() => {
     errorDiv.style.display = "none";
-  }, 2200);
+  }, 2700);
 }
 
 
@@ -256,4 +263,6 @@ socket.on("state", state => {
   
 });
 
-socket.on("error", alert);
+socket.on("error", (msg) => {
+  showInputError(msg);
+});

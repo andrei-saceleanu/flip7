@@ -47,7 +47,12 @@ def join_game(data):
     )
 
     if not player:
-        emit("error", "Unable to join")
+        # Check for duplicate name to provide accurate message
+        name_exists = any(p.name.strip().lower() == data["name"].strip().lower() for p in game.players)
+        if name_exists:
+            emit("error", "A player with the name you chose is already in the game.")
+        else:
+            emit("error", "Unable to join")
         return
 
     player_game[request.sid] = game.code
